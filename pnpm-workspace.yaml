@@ -1,0 +1,10 @@
+packages:
+  - 'frontend'
+  - 'backend'
+  - 'ingestion'
+  - 'graph'
+  - 'ml'
+  - 'infra'
+  - 'docs'
+  - 'research'
+  - 'tests'

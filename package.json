@@ -1,0 +1,12 @@
+{
+  "name": "sentinelmesh",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
+  },
+  "engines": { "node": ">=20.0.0", "pnpm": ">=9.0.0" }
+}
