@@ -135,11 +135,9 @@ Neo4j Browser: http://localhost:7474
 
 ## Team
 
-| Member | Role | Ownership |
-|--------|------|-----------|
-| Member 1 | Frontend and Visualization | React dashboard, Sigma.js graph, ATT&CK heatmap |
-| Member 2 | Backend and Ingestion | Node.js API, Kafka pipeline, MongoDB, Neo4j, auth |
-| Member 3 | ML and Research | GNN, federated learning, analyst briefs, MITRE classifier |
+| Frontend and Visualization | React dashboard, Sigma.js graph, ATT&CK heatmap |
+| Backend and Ingestion | Node.js API, Kafka pipeline, MongoDB, Neo4j, auth |
+| ML and Research | GNN, federated learning, analyst briefs, MITRE classifier |
 
 ## License
 
