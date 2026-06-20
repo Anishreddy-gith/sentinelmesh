@@ -43,7 +43,7 @@ For deeper diagrams and service responsibilities, see [docs/architecture.md](doc
 - **MITRE ATT&CK enrichment:** Technique mapping and dashboard heatmap groundwork.
 - **SOC dashboard:** React 18, Vite, Tailwind CSS, Sigma.js graph visualization, D3.js heatmaps, TanStack Query, and Axios.
 - **Secure backend foundation:** Express API with JWT, express-jwt middleware, Casbin RBAC hook, Helmet, CORS, rate limiting, Redis, MongoDB, Neo4j, KafkaJS, and WebSocket dependencies.
-- **Local infra:** Docker Compose stack for Kafka, Zookeeper, MongoDB, Neo4j, Redis, backend, frontend, ingestion, graph, ML inference, and FL server.
+- **Local infra:** Docker Compose stack for Kafka (KRaft mode, no ZooKeeper), MongoDB, Neo4j (with APOC + Graph Data Science), Redis, backend, frontend, ingestion, graph, ML inference, and FL server.
 - **CI and security scanning:** GitHub Actions for frontend linting, backend tests, Python tests, Snyk, and Trivy.
 
 ## Technology Stack
@@ -55,11 +55,11 @@ For deeper diagrams and service responsibilities, see [docs/architecture.md](doc
 | Ingestion | Python 3.11, kafka-python, python-dotenv, Zeek `conn.log`, Suricata `eve.json`, pytest |
 | Graph Service | Python 3.11, NetworkX, Neo4j Python Driver, Cypher, Kafka, pytest |
 | ML and AI | PyTorch 2.3, PyTorch Geometric, GATConv, SAGEConv, scikit-learn, FastAPI, Uvicorn, HuggingFace Transformers, Datasets, Flower, Opacus, rouge-score |
-| Datastores | Neo4j 5, MongoDB 7, Redis 7 |
-| Streaming | Apache Kafka, Confluent Zookeeper |
+| Datastores | Neo4j 5 (APOC + Graph Data Science), MongoDB 7, Redis 7 |
+| Streaming | Apache Kafka (Confluent Platform 8.x, **KRaft mode**, no ZooKeeper) |
 | Infrastructure | Docker, Docker Compose, pnpm workspaces, GitHub Actions |
 | Security | JWT access tokens, RBAC design with Casbin, rate limiting, Helmet, hash-chained audit log schema, Snyk, Trivy |
-| Research Targets | UNSW-NB15, CIC-IDS2018, LANL Unified Host and Network Dataset, federated GNN detection, differential privacy, adversarial robustness |
+| Research Targets | **DARPA OpTC (primary)**, UNSW-NB15 (warm-up baseline), CIC-IDS2018, federated GNN detection, differential privacy, adversarial robustness. LANL Unified Host/Network dataset is unlabeled and is **not used** for supervised GAT training. |
 
 ## Repository Layout
 
@@ -83,8 +83,7 @@ research/    Threat model and draft paper
 | GNN Inference | 8000 |
 | Brief Generation | 8001 |
 | FL Server | 8080 |
-| Kafka | 9092 |
-| Zookeeper | 2181 |
+| Kafka (KRaft, no ZooKeeper) | 9092 |
 | Neo4j Browser | 7474 |
 | Neo4j Bolt | 7687 |
 | MongoDB | 27017 |
@@ -99,7 +98,32 @@ cp .env.example .env
 # Edit .env and set JWT_SECRET plus any local passwords.
 cd infra
 docker compose up -d
-bash kafka/topics.sh
+# Topic creation runs automatically as the `kafka-init` one-shot container
+# (executes infra/kafka/topics.sh against the KRaft broker). To verify:
+docker compose logs kafka-init
+```
+
+### Working with the frozen schema bundle
+
+Every Kafka message in the SentinelMesh pipeline conforms to a frozen envelope
+contract specified in [`docs/SCHEMA.md`](docs/SCHEMA.md) at
+`schema_version = 1.0.0`. The JSON Schemas under [`docs/schemas/`](docs/schemas/)
+are the single source of truth; the generated TypeScript types
+([`docs/types.ts`](docs/types.ts)) and Pydantic models
+([`docs/models.py`](docs/models.py)) **must not** be hand-edited.
+
+```bash
+# One-time install
+make install-schema-tools
+
+# Regenerate types.ts and models.py after any schema change
+make schemas
+
+# Validate fixture messages against the schemas (also run in CI)
+make validate-fixtures
+
+# Fail if generated artifacts are out of sync (run in CI)
+make schema-drift-check
 ```
 
 Frontend: http://localhost:3000
