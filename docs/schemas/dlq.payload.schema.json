@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinelmesh.io/schemas/dlq.payload.schema.json",
+  "title": "Dead-letter (DLQ) payload",
+  "description": "Payload shape for every <topic>.dlq topic. See docs/SCHEMA.md §2.6.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stage", "reason", "raw"],
+  "properties": {
+    "stage": {
+      "type": "string",
+      "description": "Logical stage that rejected the message, e.g. 'zeek_producer.parse', 'normaliser.schema_validation'.",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "maxLength": 128
+    },
+    "reason": {
+      "type": "string",
+      "description": "Short machine-readable failure code.",
+      "enum": [
+        "schema_validation_failed",
+        "json_decode_error",
+        "unknown_event_type",
+        "missing_required_field",
+        "unparseable_timestamp",
+        "unsupported_log_type",
+        "internal_error"
+      ]
+    },
+    "detail": {
+      "type": ["string", "null"],
+      "maxLength": 4096,
+      "description": "Human-readable validator/exception message."
+    },
+    "raw": {
+      "type": "string",
+      "description": "Original message body. JSON-stringified if it was valid JSON; otherwise base64 bytes prefixed with 'b64:'.",
+      "minLength": 1
+    }
+  }
+}

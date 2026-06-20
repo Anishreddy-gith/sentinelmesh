@@ -1,0 +1,51 @@
+{
+  "header": {
+    "schema_version": "1.0.0",
+    "org_id": "org-000",
+    "event_id": "0192fc1f-7e8b-7c44-b3a1-1f7e8b7c44b3",
+    "produced_at": "2026-06-20T08:21:34.123Z",
+    "producer": "zeek_producer/1.0.0@site-a-zeek-01",
+    "trace_id": "0192fc1f-7e8b-7c44-b3a1-1f7e8b7c44b3"
+  },
+  "payload": {
+    "source": "zeek",
+    "log_type": "conn",
+    "sensor_id": "site-a-zeek-01",
+    "received_at": "2026-06-20T08:21:33.987Z",
+    "raw": {
+      "ts": "1750412493.987",
+      "uid": "CXWv6p3arKYeMETxOg",
+      "id.orig_h": "192.168.1.10",
+      "id.orig_p": "49152",
+      "id.resp_h": "10.0.0.5",
+      "id.resp_p": "445",
+      "proto": "tcp",
+      "service": "smb",
+      "duration": "3.521",
+      "orig_bytes": "1024",
+      "resp_bytes": "2048",
+      "conn_state": "SF",
+      "history": "ShADadFf",
+      "orig_pkts": "12",
+      "resp_pkts": "14",
+      "local_orig": "T",
+      "local_resp": "T"
+    },
+    "uid": "CXWv6p3arKYeMETxOg",
+    "id_orig_h": "192.168.1.10",
+    "id_orig_p": 49152,
+    "id_resp_h": "10.0.0.5",
+    "id_resp_p": 445,
+    "proto": "tcp",
+    "service": "smb",
+    "duration": 3.521,
+    "orig_bytes": 1024,
+    "resp_bytes": 2048,
+    "conn_state": "SF",
+    "history": "ShADadFf",
+    "orig_pkts": 12,
+    "resp_pkts": 14,
+    "local_orig": true,
+    "local_resp": true
+  }
+}

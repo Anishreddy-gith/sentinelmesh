@@ -1,0 +1,54 @@
+{
+  "header": {
+    "schema_version": "1.0.0",
+    "org_id": "org-000",
+    "event_id": "0192fc1f-9aab-7c44-b3a1-1f7e8b7c44b4",
+    "produced_at": "2026-06-20T08:21:35.456Z",
+    "producer": "suricata_producer/1.0.0@site-a-suricata-01",
+    "trace_id": "0192fc1f-9aab-7c44-b3a1-1f7e8b7c44b4"
+  },
+  "payload": {
+    "source": "suricata",
+    "log_type": "alert",
+    "sensor_id": "site-a-suricata-01",
+    "received_at": "2026-06-20T08:21:35.012Z",
+    "raw": {
+      "timestamp": "2026-06-20T08:21:35.012Z",
+      "flow_id": 1234567890,
+      "event_type": "alert",
+      "src_ip": "192.168.1.10",
+      "src_port": 49153,
+      "dest_ip": "10.0.0.5",
+      "dest_port": 445,
+      "proto": "TCP",
+      "community_id": "1:abcdef0123456789abcdef0123456789abcd=",
+      "alert": {
+        "signature_id": 2001234,
+        "signature": "ET LATERAL Possible Pass-the-Hash SMB Activity",
+        "category": "Lateral Movement",
+        "severity": 1
+      },
+      "flow": {
+        "bytes_toserver": 5120,
+        "bytes_toclient": 1024,
+        "pkts_toserver": 24,
+        "pkts_toclient": 18
+      }
+    },
+    "flow_id": 1234567890,
+    "src_ip": "192.168.1.10",
+    "src_port": 49153,
+    "dest_ip": "10.0.0.5",
+    "dest_port": 445,
+    "proto": "tcp",
+    "community_id": "1:abcdef0123456789abcdef0123456789abcd=",
+    "bytes_toserver": 5120,
+    "bytes_toclient": 1024,
+    "pkts_toserver": 24,
+    "pkts_toclient": 18,
+    "alert_signature_id": 2001234,
+    "alert_signature": "ET LATERAL Possible Pass-the-Hash SMB Activity",
+    "alert_category": "Lateral Movement",
+    "alert_severity": 1
+  }
+}

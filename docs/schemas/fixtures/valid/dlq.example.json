@@ -1,0 +1,16 @@
+{
+  "header": {
+    "schema_version": "1.0.0",
+    "org_id": "org-000",
+    "event_id": "0192fc1f-f00d-7c44-b3a1-1f7e8b7c44b7",
+    "produced_at": "2026-06-20T08:21:36.000Z",
+    "producer": "normaliser/1.0.0",
+    "trace_id": "0192fc1f-bada-7c44-b3a1-1f7e8b7c44ba"
+  },
+  "payload": {
+    "stage": "normaliser.schema_validation",
+    "reason": "schema_validation_failed",
+    "detail": "payload.src_ip: pattern mismatch ('not-an-ip')",
+    "raw": "{\"header\":{...},\"payload\":{\"source\":\"suricata\",\"src_ip\":\"not-an-ip\"}}"
+  }
+}

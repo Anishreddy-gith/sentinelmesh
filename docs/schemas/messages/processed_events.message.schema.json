@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinelmesh.io/schemas/messages/processed_events.message.schema.json",
+  "title": "processed_events Kafka message",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["header", "payload"],
+  "properties": {
+    "header": { "$ref": "../envelope.schema.json#/$defs/Header" },
+    "payload": { "$ref": "../processed_event.payload.schema.json" }
+  }
+}

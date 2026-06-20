@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinelmesh.io/schemas/_all.schema.json",
+  "title": "SentinelMesh — all message types",
+  "description": "Aggregator schema used solely by the code generators (quicktype, datamodel-code-generator) to produce docs/types.ts and docs/models.py from a single entry point. Not used at runtime for validation; validation uses the per-message schemas under messages/.",
+  "type": "object",
+  "$defs": {
+    "RawLogsMessage":        { "$ref": "messages/raw_logs.message.schema.json" },
+    "ProcessedEventsMessage":{ "$ref": "messages/processed_events.message.schema.json" },
+    "GraphSnapshotsMessage": { "$ref": "messages/graph_snapshots.message.schema.json" },
+    "DetectionsMessage":     { "$ref": "messages/detections.message.schema.json" },
+    "AnalystBriefsMessage":  { "$ref": "messages/analyst_briefs.message.schema.json" },
+    "DlqMessage":            { "$ref": "messages/dlq.message.schema.json" },
+
+    "Header":                  { "$ref": "envelope.schema.json#/$defs/Header" },
+    "RawLogPayload":           { "$ref": "raw_log.payload.schema.json" },
+    "ProcessedEventPayload":   { "$ref": "processed_event.payload.schema.json" },
+    "GraphSnapshotPayload":    { "$ref": "graph_snapshot.payload.schema.json" },
+    "DetectionPayload":        { "$ref": "detection.payload.schema.json" },
+    "AnalystBriefPayload":     { "$ref": "analyst_brief.payload.schema.json" },
+    "DlqPayload":              { "$ref": "dlq.payload.schema.json" }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/RawLogsMessage" },
+    { "$ref": "#/$defs/ProcessedEventsMessage" },
+    { "$ref": "#/$defs/GraphSnapshotsMessage" },
+    { "$ref": "#/$defs/DetectionsMessage" },
+    { "$ref": "#/$defs/AnalystBriefsMessage" },
+    { "$ref": "#/$defs/DlqMessage" }
+  ]
+}
