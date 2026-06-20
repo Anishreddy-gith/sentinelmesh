@@ -1,62 +1,206 @@
-version: '3.9'
+# SentinelMesh local development stack.
+#
+# Engineering decisions encoded here (see docs/architecture.md):
+#   * Kafka in KRaft mode (no ZooKeeper). Confluent Platform 8.x image.
+#   * auto.create.topics.enable=false — topics are created explicitly by the
+#     kafka-init one-shot container against infra/kafka/topics.sh.
+#   * Neo4j 5 with APOC + Graph Data Science plugins enabled.
+#   * Mongo 7 and Redis 7 unchanged.
+#
+# Bring up:  docker compose up -d
+# Tear down: docker compose down -v
+---
+name: sentinelmesh
+
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-    ports: ["2181:2181"]
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Streaming: single-node Kafka in KRaft mode.
+  # ─────────────────────────────────────────────────────────────────────────
   kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    depends_on: [zookeeper]
-    ports: ["9092:9092"]
+    image: confluentinc/cp-kafka:8.0.0
+    container_name: sentinelmesh-kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"   # PLAINTEXT_HOST listener — for clients running on the host
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # KRaft cluster topology — single node acting as both broker and controller.
+      CLUSTER_ID: "SmKR4FtSentinelMeshDev"
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+
+      # Listeners:
+      #   PLAINTEXT       (kafka:9094)  — inter-broker + in-cluster clients
+      #   PLAINTEXT_HOST  (kafka:9092)  — clients on the host machine
+      #   CONTROLLER      (kafka:9093)  — KRaft quorum
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9094,CONTROLLER://0.0.0.0:9093,PLAINTEXT_HOST://0.0.0.0:9092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9094,PLAINTEXT_HOST://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+
+      # Engineering decision: explicit topic management only.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+      # Single-node replication factors.
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_RETENTION_HOURS: 168
+
+      # Format storage on first boot with the CLUSTER_ID above.
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      # Topic listing requires a working broker + metadata layer; good liveness signal.
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # One-shot: create the 5 pipeline topics + 2 DLQs with explicit configs.
+  # Runs once after `kafka` is healthy, then exits 0.
+  # ─────────────────────────────────────────────────────────────────────────
+  kafka-init:
+    image: confluentinc/cp-kafka:8.0.0
+    container_name: sentinelmesh-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./kafka/topics.sh:/usr/local/bin/topics.sh:ro
+    entrypoint: ["bash", "/usr/local/bin/topics.sh"]
+    environment:
+      KAFKA_BOOTSTRAP: "kafka:9094"
+    restart: "no"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Datastores
+  # ─────────────────────────────────────────────────────────────────────────
   mongodb:
     image: mongo:7
-    ports: ["27017:27017"]
-    volumes: [mongo-data:/data/db]
+    container_name: sentinelmesh-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
   neo4j:
-    image: neo4j:5
-    ports: ["7474:7474", "7687:7687"]
+    image: neo4j:5.20
+    container_name: sentinelmesh-neo4j
+    ports:
+      - "7474:7474"   # HTTP browser
+      - "7687:7687"   # Bolt
     environment:
-      NEO4J_AUTH: neo4j/sentinelmesh123
+      NEO4J_AUTH: "neo4j/sentinelmesh123"
+      # Engineering decision: APOC + GDS are required (Cypher detection queries
+      # under graph/cypher_queries/ depend on gds.* and apoc.* procedures).
+      NEO4J_PLUGINS: '["apoc","graph-data-science"]'
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*,gds.*"
+      NEO4J_dbms_security_procedures_allowlist: "apoc.*,gds.*"
+      NEO4J_server_memory_heap_initial__size: "512m"
+      NEO4J_server_memory_heap_max__size: "1g"
+      NEO4J_server_memory_pagecache_size: "512m"
     volumes:
       - neo4j-data:/data
-      - ./neo4j/init.cypher:/var/lib/neo4j/import/init.cypher
+      - neo4j-logs:/logs
+      - ./neo4j/init.cypher:/var/lib/neo4j/import/init.cypher:ro
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p sentinelmesh123 'RETURN 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    container_name: sentinelmesh-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Application services (build contexts unchanged — refactor lands in PR-B).
+  # ─────────────────────────────────────────────────────────────────────────
   backend:
     build: ../backend
-    ports: ["3001:3001"]
+    container_name: sentinelmesh-backend
+    ports:
+      - "3001:3001"
     env_file: ../.env
-    depends_on: [kafka, mongodb, neo4j, redis]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   frontend:
     build: ../frontend
-    ports: ["3000:3000"]
-    depends_on: [backend]
+    container_name: sentinelmesh-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
   ingestion:
     build: ../ingestion
+    container_name: sentinelmesh-ingestion
     env_file: ../.env
-    depends_on: [kafka]
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+
   graph-builder:
     build: ../graph
+    container_name: sentinelmesh-graph-builder
     env_file: ../.env
-    depends_on: [kafka, neo4j]
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      neo4j:
+        condition: service_healthy
+
   ml-inference:
     build: ../ml
-    ports: ["8000:8000"]
+    container_name: sentinelmesh-ml-inference
+    ports:
+      - "8000:8000"
     env_file: ../.env
-    depends_on: [kafka, mongodb]
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+
   fl-server:
     build: ../ml
-    command: python federated/fl_server.py
-    ports: ["8080:8080"]
+    container_name: sentinelmesh-fl-server
+    command: ["python", "federated/fl_server.py"]
+    ports:
+      - "8080:8080"
     env_file: ../.env
+
 volumes:
+  kafka-data:
   mongo-data:
   neo4j-data:
+  neo4j-logs:
