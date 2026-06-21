@@ -32,32 +32,30 @@ const TOPIC_TO_SCHEMA = {
   dlq:               "messages/dlq.message.schema.json",
 };
 
+const SCHEMA_FILES = [
+  "envelope.schema.json",
+  "raw_log.payload.schema.json",
+  "processed_event.payload.schema.json",
+  "graph_snapshot.payload.schema.json",
+  "detection.payload.schema.json",
+  "analyst_brief.payload.schema.json",
+  "dlq.payload.schema.json",
+  "messages/raw_logs.message.schema.json",
+  "messages/processed_events.message.schema.json",
+  "messages/graph_snapshots.message.schema.json",
+  "messages/detections.message.schema.json",
+  "messages/analyst_briefs.message.schema.json",
+  "messages/dlq.message.schema.json",
+];
+
 function loadAllSchemas(ajv) {
-  const files = [
-    "envelope.schema.json",
-    "raw_log.payload.schema.json",
-    "processed_event.payload.schema.json",
-    "graph_snapshot.payload.schema.json",
-    "detection.payload.schema.json",
-    "analyst_brief.payload.schema.json",
-    "dlq.payload.schema.json",
-    "messages/raw_logs.message.schema.json",
-    "messages/processed_events.message.schema.json",
-    "messages/graph_snapshots.message.schema.json",
-    "messages/detections.message.schema.json",
-    "messages/analyst_briefs.message.schema.json",
-    "messages/dlq.message.schema.json",
-  ];
-  for (const rel of files) {
-    const p = join(SCHEMA_DIR, rel);
-    const schema = JSON.parse(readFileSync(p, "utf-8"));
-    ajv.addSchema(schema);
+  for (const rel of SCHEMA_FILES) {
+    ajv.addSchema(JSON.parse(readFileSync(join(SCHEMA_DIR, rel), "utf-8")));
   }
 }
 
 function schemaIdForFixture(filename) {
-  const base = basename(filename, ".json");
-  const topicKey = base.split(".")[0];
+  const topicKey = basename(filename, ".json").split(".")[0];
   const rel = TOPIC_TO_SCHEMA[topicKey];
   if (!rel) {
     throw new Error(`Unknown topic prefix '${topicKey}' for fixture ${filename}`);
@@ -67,15 +65,12 @@ function schemaIdForFixture(filename) {
 
 function stripInternalKeys(obj) {
   if (Array.isArray(obj)) return obj.map(stripInternalKeys);
-  if (obj && typeof obj === "object") {
-    const out = {};
-    for (const [k, v] of Object.entries(obj)) {
-      if (k.startsWith("_")) continue;
-      out[k] = stripInternalKeys(v);
-    }
-    return out;
+  if (!obj || typeof obj !== "object") return obj;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (!k.startsWith("_")) out[k] = stripInternalKeys(v);
   }
-  return obj;
+  return out;
 }
 
 function listFixtures(dir) {
@@ -83,52 +78,54 @@ function listFixtures(dir) {
   return readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => join(dir, f));
 }
 
-function main() {
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats.default ? addFormats.default(ajv) : addFormats(ajv);
-  loadAllSchemas(ajv);
+function checkOne(ajv, fixturePath, shouldPass) {
+  const raw = JSON.parse(readFileSync(fixturePath, "utf-8"));
+  const data = stripInternalKeys(raw);
+  const schemaId = schemaIdForFixture(fixturePath);
+  const validate = ajv.getSchema(schemaId);
+  if (!validate) {
+    return { ok: false, msg: `schema not registered: ${schemaId}` };
+  }
+  const accepted = validate(data);
+  if (accepted === shouldPass) {
+    return { ok: true, msg: null };
+  }
+  const errSummary = accepted
+    ? "validator accepted a fixture that should have been rejected"
+    : ajv.errorsText(validate.errors, { separator: "; " });
+  return { ok: false, msg: errSummary };
+}
 
+function runGroup(ajv, dir, shouldPass) {
   let pass = 0;
   let fail = 0;
-  const failures = [];
-
-  const expectations = [
-    { dir: "valid",   shouldPass: true  },
-    { dir: "invalid", shouldPass: false },
-  ];
-
-  for (const { dir, shouldPass } of expectations) {
-    const fixtures = listFixtures(join(FIXTURE_DIR, dir));
-    for (const fixturePath of fixtures) {
-      const raw = JSON.parse(readFileSync(fixturePath, "utf-8"));
-      const data = stripInternalKeys(raw);
-      const schemaId = schemaIdForFixture(fixturePath);
-      const validate = ajv.getSchema(schemaId);
-      if (!validate) {
-        failures.push({ fixturePath, msg: `schema not registered: ${schemaId}` });
-        fail++;
-        continue;
-      }
-      const ok = validate(data);
-      const rel = fixturePath.replace(ROOT + "/", "");
-      if (ok === shouldPass) {
-        console.log(`PASS  ${rel}  (expected ${shouldPass ? "valid" : "invalid"})`);
-        pass++;
-      } else {
-        const errSummary = ok
-          ? "validator accepted a fixture that should have been rejected"
-          : ajv.errorsText(validate.errors, { separator: "; " });
-        failures.push({ fixturePath: rel, msg: errSummary });
-        console.log(`FAIL  ${rel}  -> ${errSummary}`);
-        fail++;
-      }
+  for (const fixturePath of listFixtures(join(FIXTURE_DIR, dir))) {
+    const { ok, msg } = checkOne(ajv, fixturePath, shouldPass);
+    const rel = fixturePath.replace(`${ROOT}/`, "");
+    if (ok) {
+      console.log(`PASS  ${rel}  (expected ${shouldPass ? "valid" : "invalid"})`);
+      pass++;
+    } else {
+      console.log(`FAIL  ${rel}  -> ${msg}`);
+      fail++;
     }
   }
+  return { pass, fail };
+}
+
+function main() {
+  const ajv = new Ajv2020({ allErrors: true, strict: false });
+  const addFormatsFn = addFormats.default ?? addFormats;
+  addFormatsFn(ajv);
+  loadAllSchemas(ajv);
+
+  const valid = runGroup(ajv, "valid", true);
+  const invalid = runGroup(ajv, "invalid", false);
+  const pass = valid.pass + invalid.pass;
+  const fail = valid.fail + invalid.fail;
 
   console.log(`\n${pass} passed, ${fail} failed`);
-  if (fail > 0) {
-    process.exit(1);
-  }
+  if (fail > 0) process.exit(1);
 }
 
 main();
