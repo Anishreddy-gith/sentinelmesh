@@ -125,21 +125,30 @@ sequenceDiagram
 
 ## Runtime Topology
 
+Docker Compose splits services into two tiers via the `apps` profile:
+
+- **Infrastructure tier (no profile, default `docker compose up -d`):** Kafka, kafka-init, Neo4j, Mongo, Redis. This is the only tier expected to come up cleanly during Phase 2.0.
+- **Application tier (`--profile apps`):** backend, frontend, ingestion, graph-builder, ml-inference, fl-server. These are scaffold-stage and are not built by default; each is enabled as its phase PR completes.
+
 ```mermaid
 flowchart TB
   subgraph DockerCompose[Docker Compose Network]
-    Frontend[frontend:3000]
-    Backend[backend:3001]
-    MLInfer[ml-inference:8000]
-    BriefGen[brief-generation:8001]
-    FLServer[fl-server:8080]
-    Kafka["kafka:9092 (KRaft, no ZooKeeper)"]
-    KafkaInit["kafka-init (one-shot topic creation)"]
-    Mongo[(mongodb:27017)]
-    Neo4j["(neo4j:7474/7687, APOC + GDS)"]
-    Redis[(redis:6379)]
-    Ingestion[ingestion worker]
-    GraphBuilder[graph-builder worker]
+    subgraph Infra[Infrastructure tier - default]
+      Kafka["kafka:9092 (KRaft, no ZooKeeper)"]
+      KafkaInit["kafka-init (one-shot topic creation)"]
+      Mongo[(mongodb:27017)]
+      Neo4j["(neo4j:7474/7687, APOC + GDS)"]
+      Redis[(redis:6379)]
+    end
+    subgraph Apps[Application tier - profile=apps]
+      Frontend[frontend:3000]
+      Backend[backend:3001]
+      MLInfer[ml-inference:8000]
+      BriefGen[brief-generation:8001]
+      FLServer[fl-server:8080]
+      Ingestion[ingestion worker]
+      GraphBuilder[graph-builder worker]
+    end
   end
 
   KafkaInit -. creates 5 topics + 2 DLQs .-> Kafka

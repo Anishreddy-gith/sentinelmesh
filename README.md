@@ -97,10 +97,22 @@ cd sentinelmesh
 cp .env.example .env
 # Edit .env and set JWT_SECRET plus any local passwords.
 cd infra
+# Brings up only the infrastructure tier:
+#   Kafka (KRaft), Neo4j (APOC + GDS), Mongo, Redis, plus the
+#   `kafka-init` one-shot that creates the 5 pipeline topics + 2 DLQs.
 docker compose up -d
-# Topic creation runs automatically as the `kafka-init` one-shot container
-# (executes infra/kafka/topics.sh against the KRaft broker). To verify:
-docker compose logs kafka-init
+docker compose logs kafka-init   # verify topic creation
+```
+
+Application services (backend, frontend, ingestion, graph-builder,
+ml-inference, fl-server) are guarded by the `apps` compose profile and are
+**not** built or started by the default `up`. They are scaffold-stage and
+have known dependency issues (e.g. `flwr` vs `fastapi-cli` typer conflict in
+the ML image) that are fixed in their respective phase PRs. To opt in once
+the relevant phases land:
+
+```bash
+docker compose --profile apps up -d --build
 ```
 
 ### Working with the frozen schema bundle

@@ -7,8 +7,35 @@
 #   * Neo4j 5 with APOC + Graph Data Science plugins enabled.
 #   * Mongo 7 and Redis 7 unchanged.
 #
-# Bring up:  docker compose up -d
-# Tear down: docker compose down -v
+# Two service tiers:
+#   1. Infrastructure (no profile)         — Kafka, kafka-init, Neo4j, Mongo, Redis.
+#                                            Always started by `docker compose up`.
+#   2. Application services (profile=apps) — backend, frontend, ingestion,
+#                                            graph-builder, ml-inference, fl-server.
+#                                            Opt-in only; their Dockerfiles still
+#                                            depend on Phase 2+ rewrites and are
+#                                            NOT expected to build cleanly today
+#                                            (see KNOWN ISSUES below).
+#
+# Usage:
+#   Infra only (Phase 2.0 target):
+#     docker compose up -d
+#   Infra + every app service (requires Phase-2+ work to complete):
+#     docker compose --profile apps up -d --build
+#   Tear down (and wipe volumes):
+#     docker compose down -v
+#
+# KNOWN ISSUES with the `apps` profile (to fix in their respective phases):
+#   * ml-inference / fl-server: ml/requirements.txt has an unresolvable pin
+#     conflict — flwr 1.8.0 requires typer<0.10.0,>=0.9.0 while fastapi-cli
+#     (a transitive dep of fastapi 0.111.0) requires typer>=0.12.3. Will be
+#     fixed in the Phase 6 (Federated Learning) PR by upgrading to flwr>=1.9
+#     or downgrading fastapi to a version without the fastapi-cli extra.
+#   * ingestion / graph-builder: emit and consume the legacy flat-dict
+#     message format. They will be rewritten in PR-B (Phase 2 ingestion) to
+#     produce the frozen {header, payload} envelope from docs/SCHEMA.md.
+#   * backend: routes are stubs; Mongo / Kafka / Redis wiring lands in a
+#     later backend phase.
 ---
 name: sentinelmesh
 
@@ -135,9 +162,13 @@ services:
       retries: 6
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Application services (build contexts unchanged — refactor lands in PR-B).
+  # Application services — `apps` profile only. Opt in with:
+  #   docker compose --profile apps up -d --build
+  # All of these are scaffold-stage and not expected to build cleanly until
+  # their respective phases complete. See KNOWN ISSUES at the top of this file.
   # ─────────────────────────────────────────────────────────────────────────
   backend:
+    profiles: ["apps"]
     build: ../backend
     container_name: sentinelmesh-backend
     ports:
@@ -154,6 +185,7 @@ services:
         condition: service_healthy
 
   frontend:
+    profiles: ["apps"]
     build: ../frontend
     container_name: sentinelmesh-frontend
     ports:
@@ -162,6 +194,7 @@ services:
       - backend
 
   ingestion:
+    profiles: ["apps"]
     build: ../ingestion
     container_name: sentinelmesh-ingestion
     env_file: ../.env
@@ -170,6 +203,7 @@ services:
         condition: service_completed_successfully
 
   graph-builder:
+    profiles: ["apps"]
     build: ../graph
     container_name: sentinelmesh-graph-builder
     env_file: ../.env
@@ -180,6 +214,7 @@ services:
         condition: service_healthy
 
   ml-inference:
+    profiles: ["apps"]
     build: ../ml
     container_name: sentinelmesh-ml-inference
     ports:
@@ -192,6 +227,7 @@ services:
         condition: service_healthy
 
   fl-server:
+    profiles: ["apps"]
     build: ../ml
     container_name: sentinelmesh-fl-server
     command: ["python", "federated/fl_server.py"]
