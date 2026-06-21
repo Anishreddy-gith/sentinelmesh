@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinelmesh.io/schemas/messages/dlq.message.schema.json",
+  "title": "Dead-letter (.dlq) Kafka message",
+  "description": "Schema shared by every <topic>.dlq topic.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["header", "payload"],
+  "properties": {
+    "header": { "$ref": "../envelope.schema.json#/$defs/Header" },
+    "payload": { "$ref": "../dlq.payload.schema.json" }
+  }
+}

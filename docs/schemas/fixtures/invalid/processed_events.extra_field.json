@@ -1,0 +1,25 @@
+{
+  "_invalid_reason": "payload contains 'extra_field' which is forbidden by additionalProperties:false",
+  "header": {
+    "schema_version": "1.0.0",
+    "org_id": "org-000",
+    "event_id": "0192fc1f-bccd-7c44-b3a1-1f7e8b7c44b5",
+    "produced_at": "2026-06-20T08:21:34.500Z",
+    "producer": "normaliser/1.0.0",
+    "trace_id": "0192fc1f-7e8b-7c44-b3a1-1f7e8b7c44b3"
+  },
+  "payload": {
+    "ts": "2026-06-20T08:21:33.987Z",
+    "src_ip": "192.168.1.10",
+    "dst_ip": "10.0.0.5",
+    "src_port": 49152,
+    "dst_port": 445,
+    "protocol": "tcp",
+    "bytes_sent": 1024,
+    "bytes_recv": 2048,
+    "alert_flag": false,
+    "sensor_id": "site-a-zeek-01",
+    "source": "zeek",
+    "extra_field": "should_not_be_here"
+  }
+}

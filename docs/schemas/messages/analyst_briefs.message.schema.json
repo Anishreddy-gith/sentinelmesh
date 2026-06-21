@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinelmesh.io/schemas/messages/analyst_briefs.message.schema.json",
+  "title": "analyst_briefs Kafka message (DRAFT payload)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["header", "payload"],
+  "properties": {
+    "header": { "$ref": "../envelope.schema.json#/$defs/Header" },
+    "payload": { "$ref": "../analyst_brief.payload.schema.json" }
+  }
+}

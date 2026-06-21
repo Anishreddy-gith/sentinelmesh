@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinelmesh.io/schemas/messages/raw_logs.message.schema.json",
+  "title": "raw_logs Kafka message",
+  "description": "Full envelope + raw_log payload. This is what producers validate against before send and consumers validate against on receive.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["header", "payload"],
+  "properties": {
+    "header": { "$ref": "../envelope.schema.json#/$defs/Header" },
+    "payload": { "$ref": "../raw_log.payload.schema.json" }
+  }
+}

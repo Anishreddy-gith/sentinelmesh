@@ -1,3 +1,25 @@
+# SentinelMesh ML service requirements.
+#
+# KNOWN ISSUE (to fix in the Phase 6 / Federated Learning PR — do NOT
+# attempt to `pip install -r` this file as-is; it will fail with a
+# ResolutionImpossible error):
+#
+#   flwr==1.8.0     depends on  typer>=0.9.0,<0.10.0
+#   fastapi==0.111.0  pulls       fastapi-cli  which depends on  typer>=0.12.3
+#
+#   -> resolver cannot satisfy both upper-bounds in the same env.
+#
+# Resolution options (decision deferred to the FL phase):
+#   (a) Upgrade flwr to >=1.9.0 which relaxes the typer pin, OR
+#   (b) Downgrade fastapi to a version that does NOT depend on fastapi-cli
+#       (fastapi <0.111 does not have the cli extra as a hard dep), OR
+#   (c) Install fastapi without the cli extra: `pip install "fastapi[standard]==0.111.0" --no-deps`
+#       and manage the transitive deps explicitly.
+#
+# The infra/docker-compose.yml does NOT build this image by default
+# (the `apps` profile is opt-in). Phase 2.0 infra brings up only the
+# four datastores + kafka-init.
+
 torch==2.3.0
 torch-geometric==2.5.3
 transformers==4.41.0

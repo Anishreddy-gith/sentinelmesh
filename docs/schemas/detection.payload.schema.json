@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinelmesh.io/schemas/detection.payload.schema.json",
+  "title": "detections payload (DRAFT)",
+  "$comment": "DRAFT — finalised in Phase 4 (GNN training and inference). Skeleton only.",
+  "type": "object",
+  "required": ["detection_id", "window_start", "window_end", "model_name", "model_version", "anomalous_nodes", "anomalous_edges", "gnn_scores", "threshold"],
+  "properties": {
+    "detection_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "window_start": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "window_end": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "model_name": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "model_version": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "anomalous_nodes": {
+      "type": "array",
+      "items": { "type": "string", "$comment": "host identifier shape finalised in Phase 4" }
+    },
+    "anomalous_edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["src", "dst"],
+        "properties": {
+          "src": { "type": "string" },
+          "dst": { "type": "string" }
+        }
+      }
+    },
+    "gnn_scores": {
+      "type": "object",
+      "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 },
+      "$comment": "map host_id -> anomaly_score (Phase 4 will refine)"
+    },
+    "threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+    "explanation": {
+      "type": "object",
+      "$comment": "GNNExplainer output, shape finalised in Phase 4"
+    }
+  }
+}

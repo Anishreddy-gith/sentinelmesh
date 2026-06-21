@@ -1,0 +1,30 @@
+{
+  "header": {
+    "schema_version": "1.0.0",
+    "org_id": "org-000",
+    "event_id": "0192fc1f-deef-7c44-b3a1-1f7e8b7c44b6",
+    "produced_at": "2026-06-20T08:21:35.700Z",
+    "producer": "normaliser/1.0.0",
+    "trace_id": "0192fc1f-9aab-7c44-b3a1-1f7e8b7c44b4"
+  },
+  "payload": {
+    "ts": "2026-06-20T08:21:35.012Z",
+    "src_ip": "192.168.1.10",
+    "dst_ip": "10.0.0.5",
+    "src_port": 49153,
+    "dst_port": 445,
+    "protocol": "tcp",
+    "bytes_sent": 5120,
+    "bytes_recv": 1024,
+    "packets_sent": 24,
+    "packets_recv": 18,
+    "duration_ms": null,
+    "alert_flag": true,
+    "alert_signature": "ET LATERAL Possible Pass-the-Hash SMB Activity",
+    "alert_category": "Lateral Movement",
+    "conn_state": null,
+    "community_id": "1:abcdef0123456789abcdef0123456789abcd=",
+    "sensor_id": "site-a-suricata-01",
+    "source": "suricata"
+  }
+}
