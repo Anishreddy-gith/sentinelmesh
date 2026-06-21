@@ -9,117 +9,6 @@ from typing import Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 
-class Source(Enum):
-    zeek = "zeek"
-    suricata = "suricata"
-
-
-class GraphSnapshotPayload(BaseModel):
-    window_start: str = Field(
-        ...,
-        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
-    )
-    window_end: str = Field(
-        ...,
-        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
-    )
-    nodes: list[dict[str, Any]]
-    edges: list[dict[str, Any]]
-    node_count: int = Field(..., ge=0)
-    edge_count: int = Field(..., ge=0)
-    contributing_trace_ids: Optional[list[str]] = Field(
-        None, pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-    )
-
-
-class AnomalousEdge(BaseModel):
-    src: str
-    dst: str
-
-
-class DetectionPayload(BaseModel):
-    detection_id: str = Field(
-        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-    )
-    window_start: str = Field(
-        ...,
-        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
-    )
-    window_end: str = Field(
-        ...,
-        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
-    )
-    model_name: str = Field(..., max_length=64, min_length=1)
-    model_version: str = Field(..., max_length=32, min_length=1)
-    anomalous_nodes: list[str]
-    anomalous_edges: list[AnomalousEdge]
-    gnn_scores: dict[str, float]
-    threshold: float = Field(..., ge=0.0, le=1.0)
-    explanation: Optional[dict[str, Any]] = None
-
-
-class AnalystBriefPayload(BaseModel):
-    detection_id: str = Field(
-        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-    )
-    brief_text: str = Field(..., max_length=4096, min_length=1)
-    mitre_technique_id: str = Field(..., pattern="^T[0-9]{4}(\\.[0-9]{3})?$|^T0000$")
-    mitre_tactic: str = Field(..., max_length=64, min_length=1)
-    mitre_technique_name: Optional[str] = Field(None, max_length=128, min_length=1)
-    confidence: float = Field(..., ge=0.0, le=1.0)
-    generated_by: str
-
-
-class Reason(Enum):
-    """
-    Short machine-readable failure code.
-    """
-
-    schema_validation_failed = "schema_validation_failed"
-    json_decode_error = "json_decode_error"
-    unknown_event_type = "unknown_event_type"
-    missing_required_field = "missing_required_field"
-    unparseable_timestamp = "unparseable_timestamp"
-    unsupported_log_type = "unsupported_log_type"
-    internal_error = "internal_error"
-
-
-class DlqPayload(BaseModel):
-    """
-    Payload shape for every <topic>.dlq topic. See docs/SCHEMA.md §2.6.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    stage: str = Field(
-        ...,
-        description="Logical stage that rejected the message, e.g. 'zeek_producer.parse', 'normaliser.schema_validation'.",
-        max_length=128,
-        pattern="^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
-    )
-    reason: Reason = Field(..., description="Short machine-readable failure code.")
-    detail: Optional[str] = Field(
-        None, description="Human-readable validator/exception message.", max_length=4096
-    )
-    raw: str = Field(
-        ...,
-        description="Original message body. JSON-stringified if it was valid JSON; otherwise base64 bytes prefixed with 'b64:'.",
-        min_length=1,
-    )
-
-
-class Port(RootModel[int]):
-    root: int = Field(..., ge=0, le=65535)
-
-
-class Protocol(Enum):
-    tcp = "tcp"
-    udp = "udp"
-    icmp = "icmp"
-    other = "other"
-
-
 class Header(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -163,104 +52,18 @@ class Header(BaseModel):
     )
 
 
-class ProcessedEventPayload(BaseModel):
+class Proto(Enum):
+    tcp = "tcp"
+    udp = "udp"
+    icmp = "icmp"
+    other = "other"
+
+
+class Payload(BaseModel):
     """
-    Canonical, vendor-neutral 5-tuple event derived from a single raw_logs message. See docs/SCHEMA.md §2.2.
+    Discriminated union of Zeek conn-style records and Suricata eve.json records. Variant is selected on the `source` field. See docs/SCHEMA.md §2.1.
     """
 
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    ts: str = Field(
-        ...,
-        description="Canonical event timestamp (RFC3339 UTC ms).",
-        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
-    )
-    src_ip: str = Field(
-        ...,
-        max_length=45,
-        min_length=3,
-        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
-    )
-    dst_ip: str = Field(
-        ...,
-        max_length=45,
-        min_length=3,
-        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
-    )
-    src_port: Optional[Port] = Field(
-        None, description="Null for ICMP or when the source vendor omits it."
-    )
-    dst_port: Optional[Port] = None
-    protocol: Protocol
-    bytes_sent: int = Field(
-        ..., description="src->dst payload bytes. Zero if unknown.", ge=0
-    )
-    bytes_recv: int = Field(
-        ..., description="dst->src payload bytes. Zero if unknown.", ge=0
-    )
-    packets_sent: Optional[int] = Field(None, ge=0)
-    packets_recv: Optional[int] = Field(None, ge=0)
-    duration_ms: Optional[int] = Field(None, ge=0)
-    alert_flag: bool = Field(
-        ...,
-        description="True iff event indicates a flagged condition. Rule: Suricata log_type=='alert' OR Zeek conn_state in {S0,REJ,RSTR,RSTO}.",
-    )
-    alert_signature: Optional[str] = Field(None, max_length=256)
-    alert_category: Optional[str] = Field(None, max_length=128)
-    conn_state: Optional[str] = Field(None, max_length=8)
-    community_id: Optional[str] = Field(None, max_length=64)
-    sensor_id: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
-    source: Source
-
-
-class SuricataRawLog(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    source: Literal["suricata"]
-    log_type: str = Field(
-        ...,
-        description="Vendor-native log family. Suricata: 'flow'|'alert'|'dns'|'http'|'tls'|'fileinfo'.",
-        max_length=32,
-        min_length=1,
-    )
-    sensor_id: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
-    received_at: str = Field(
-        ...,
-        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
-    )
-    raw: dict[str, Any]
-    flow_id: Optional[int] = Field(None, ge=0)
-    src_ip: str = Field(
-        ...,
-        description="IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.",
-        max_length=45,
-        min_length=3,
-        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
-    )
-    src_port: Optional[Port] = None
-    dest_ip: str = Field(
-        ...,
-        description="IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.",
-        max_length=45,
-        min_length=3,
-        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
-    )
-    dest_port: Optional[Port] = None
-    proto: Protocol
-    community_id: Optional[str] = Field(None, max_length=64)
-    bytes_toserver: Optional[int] = Field(None, ge=0)
-    bytes_toclient: Optional[int] = Field(None, ge=0)
-    pkts_toserver: Optional[int] = Field(None, ge=0)
-    pkts_toclient: Optional[int] = Field(None, ge=0)
-    alert_signature_id: Optional[int] = Field(None, ge=0)
-    alert_signature: Optional[str] = Field(None, max_length=256)
-    alert_category: Optional[str] = Field(None, max_length=128)
-    alert_severity: Optional[int] = Field(None, ge=1, le=5)
-
-
-class ZeekRawLog(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -301,7 +104,7 @@ class ZeekRawLog(BaseModel):
         pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
     )
     id_resp_p: int = Field(..., ge=0, le=65535)
-    proto: Protocol
+    proto: Proto
     service: Optional[str] = Field(None, max_length=32)
     duration: Optional[float] = Field(None, ge=0.0)
     orig_bytes: Optional[int] = Field(None, ge=0)
@@ -314,39 +117,303 @@ class ZeekRawLog(BaseModel):
     local_resp: Optional[bool] = None
 
 
-class ProcessedEventsMessage(BaseModel):
+class SrcPort(RootModel[int]):
+    root: int = Field(..., ge=0, le=65535)
+
+
+class DestPort(SrcPort):
+    pass
+
+
+class Payload1(BaseModel):
+    """
+    Discriminated union of Zeek conn-style records and Suricata eve.json records. Variant is selected on the `source` field. See docs/SCHEMA.md §2.1.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    source: Literal["suricata"]
+    log_type: str = Field(
+        ...,
+        description="Vendor-native log family. Suricata: 'flow'|'alert'|'dns'|'http'|'tls'|'fileinfo'.",
+        max_length=32,
+        min_length=1,
+    )
+    sensor_id: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
+    received_at: str = Field(
+        ...,
+        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    )
+    raw: dict[str, Any]
+    flow_id: Optional[int] = Field(None, ge=0)
+    src_ip: str = Field(
+        ...,
+        description="IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.",
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    src_port: Optional[SrcPort] = None
+    dest_ip: str = Field(
+        ...,
+        description="IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.",
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    dest_port: Optional[DestPort] = None
+    proto: Proto
+    community_id: Optional[str] = Field(None, max_length=64)
+    bytes_toserver: Optional[int] = Field(None, ge=0)
+    bytes_toclient: Optional[int] = Field(None, ge=0)
+    pkts_toserver: Optional[int] = Field(None, ge=0)
+    pkts_toclient: Optional[int] = Field(None, ge=0)
+    alert_signature_id: Optional[int] = Field(None, ge=0)
+    alert_signature: Optional[str] = Field(None, max_length=256)
+    alert_category: Optional[str] = Field(None, max_length=128)
+    alert_severity: Optional[int] = Field(None, ge=1, le=5)
+
+
+class SentinelMeshMessage1(BaseModel):
+    """
+    Full envelope + raw_log payload. This is what producers validate against before send and consumers validate against on receive.
+    """
+
     model_config = ConfigDict(
         extra="forbid",
     )
     header: Header
-    payload: ProcessedEventPayload
+    payload: Union[Payload, Payload1] = Field(
+        ...,
+        description="Discriminated union of Zeek conn-style records and Suricata eve.json records. Variant is selected on the `source` field. See docs/SCHEMA.md §2.1.",
+        title="raw_logs payload",
+    )
 
 
-class GraphSnapshotsMessage(BaseModel):
+class SrcPort1(RootModel[int]):
+    root: int = Field(
+        ...,
+        description="Null for ICMP or when the source vendor omits it.",
+        ge=0,
+        le=65535,
+    )
+
+
+class DstPort(SrcPort):
+    pass
+
+
+class Source(Enum):
+    zeek = "zeek"
+    suricata = "suricata"
+
+
+class Payload2(BaseModel):
+    """
+    Canonical, vendor-neutral 5-tuple event derived from a single raw_logs message. See docs/SCHEMA.md §2.2.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    ts: str = Field(
+        ...,
+        description="Canonical event timestamp (RFC3339 UTC ms).",
+        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    )
+    src_ip: str = Field(
+        ...,
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    dst_ip: str = Field(
+        ...,
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    src_port: Optional[SrcPort1] = Field(
+        None, description="Null for ICMP or when the source vendor omits it."
+    )
+    dst_port: Optional[DstPort] = None
+    protocol: Proto
+    bytes_sent: int = Field(
+        ..., description="src->dst payload bytes. Zero if unknown.", ge=0
+    )
+    bytes_recv: int = Field(
+        ..., description="dst->src payload bytes. Zero if unknown.", ge=0
+    )
+    packets_sent: Optional[int] = Field(None, ge=0)
+    packets_recv: Optional[int] = Field(None, ge=0)
+    duration_ms: Optional[int] = Field(None, ge=0)
+    alert_flag: bool = Field(
+        ...,
+        description="True iff event indicates a flagged condition. Rule: Suricata log_type=='alert' OR Zeek conn_state in {S0,REJ,RSTR,RSTO}.",
+    )
+    alert_signature: Optional[str] = Field(None, max_length=256)
+    alert_category: Optional[str] = Field(None, max_length=128)
+    conn_state: Optional[str] = Field(None, max_length=8)
+    community_id: Optional[str] = Field(None, max_length=64)
+    sensor_id: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
+    source: Source
+
+
+class SentinelMeshMessage2(BaseModel):
+    """
+    Aggregator schema used solely by the code generators (quicktype, datamodel-code-generator) to produce docs/types.ts and docs/models.py from a single entry point. Not used at runtime for validation; validation uses the per-message schemas under messages/.
+    """
+
     model_config = ConfigDict(
         extra="forbid",
     )
     header: Header
-    payload: GraphSnapshotPayload
+    payload: Payload2 = Field(
+        ...,
+        description="Canonical, vendor-neutral 5-tuple event derived from a single raw_logs message. See docs/SCHEMA.md §2.2.",
+        title="processed_events payload",
+    )
 
 
-class DetectionsMessage(BaseModel):
+class ContributingTraceId(RootModel[str]):
+    root: str = Field(
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
+
+
+class Payload3(BaseModel):
+    window_start: str = Field(
+        ...,
+        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    )
+    window_end: str = Field(
+        ...,
+        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    )
+    nodes: list[dict[str, Any]]
+    edges: list[dict[str, Any]]
+    node_count: int = Field(..., ge=0)
+    edge_count: int = Field(..., ge=0)
+    contributing_trace_ids: Optional[list[str]] = Field(
+        None, pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
+
+
+class SentinelMeshMessage3(BaseModel):
+    """
+    Aggregator schema used solely by the code generators (quicktype, datamodel-code-generator) to produce docs/types.ts and docs/models.py from a single entry point. Not used at runtime for validation; validation uses the per-message schemas under messages/.
+    """
+
     model_config = ConfigDict(
         extra="forbid",
     )
     header: Header
-    payload: DetectionPayload
+    payload: Payload3 = Field(..., title="graph_snapshots payload (DRAFT)")
 
 
-class AnalystBriefsMessage(BaseModel):
+class AnomalousEdge(BaseModel):
+    src: str
+    dst: str
+
+
+class Payload4(BaseModel):
+    detection_id: str = Field(
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
+    window_start: str = Field(
+        ...,
+        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    )
+    window_end: str = Field(
+        ...,
+        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    )
+    model_name: str = Field(..., max_length=64, min_length=1)
+    model_version: str = Field(..., max_length=32, min_length=1)
+    anomalous_nodes: list[str]
+    anomalous_edges: list[AnomalousEdge]
+    gnn_scores: dict[str, float]
+    threshold: float = Field(..., ge=0.0, le=1.0)
+    explanation: Optional[dict[str, Any]] = None
+
+
+class SentinelMeshMessage4(BaseModel):
+    """
+    Aggregator schema used solely by the code generators (quicktype, datamodel-code-generator) to produce docs/types.ts and docs/models.py from a single entry point. Not used at runtime for validation; validation uses the per-message schemas under messages/.
+    """
+
     model_config = ConfigDict(
         extra="forbid",
     )
     header: Header
-    payload: AnalystBriefPayload
+    payload: Payload4 = Field(..., title="detections payload (DRAFT)")
 
 
-class DlqMessage(BaseModel):
+class Payload5(BaseModel):
+    detection_id: str = Field(
+        ..., pattern="^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
+    brief_text: str = Field(..., max_length=4096, min_length=1)
+    mitre_technique_id: str = Field(..., pattern="^T[0-9]{4}(\\.[0-9]{3})?$|^T0000$")
+    mitre_tactic: str = Field(..., max_length=64, min_length=1)
+    mitre_technique_name: Optional[str] = Field(None, max_length=128, min_length=1)
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    generated_by: str
+
+
+class SentinelMeshMessage5(BaseModel):
+    """
+    Aggregator schema used solely by the code generators (quicktype, datamodel-code-generator) to produce docs/types.ts and docs/models.py from a single entry point. Not used at runtime for validation; validation uses the per-message schemas under messages/.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    header: Header
+    payload: Payload5 = Field(..., title="analyst_briefs payload (DRAFT)")
+
+
+class Reason(Enum):
+    """
+    Short machine-readable failure code.
+    """
+
+    schema_validation_failed = "schema_validation_failed"
+    json_decode_error = "json_decode_error"
+    unknown_event_type = "unknown_event_type"
+    missing_required_field = "missing_required_field"
+    unparseable_timestamp = "unparseable_timestamp"
+    unsupported_log_type = "unsupported_log_type"
+    internal_error = "internal_error"
+
+
+class Payload6(BaseModel):
+    """
+    Payload shape for every <topic>.dlq topic. See docs/SCHEMA.md §2.6.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    stage: str = Field(
+        ...,
+        description="Logical stage that rejected the message, e.g. 'zeek_producer.parse', 'normaliser.schema_validation'.",
+        max_length=128,
+        pattern="^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+    )
+    reason: Reason = Field(..., description="Short machine-readable failure code.")
+    detail: Optional[str] = Field(
+        None, description="Human-readable validator/exception message.", max_length=4096
+    )
+    raw: str = Field(
+        ...,
+        description="Original message body. JSON-stringified if it was valid JSON; otherwise base64 bytes prefixed with 'b64:'.",
+        min_length=1,
+    )
+
+
+class SentinelMeshMessage6(BaseModel):
     """
     Schema shared by every <topic>.dlq topic.
     """
@@ -355,7 +422,97 @@ class DlqMessage(BaseModel):
         extra="forbid",
     )
     header: Header
-    payload: DlqPayload
+    payload: Payload6 = Field(
+        ...,
+        description="Payload shape for every <topic>.dlq topic. See docs/SCHEMA.md §2.6.",
+        title="Dead-letter (DLQ) payload",
+    )
+
+
+class SentinelMeshMessage(
+    RootModel[
+        Union[
+            SentinelMeshMessage1,
+            SentinelMeshMessage2,
+            SentinelMeshMessage3,
+            SentinelMeshMessage4,
+            SentinelMeshMessage5,
+            SentinelMeshMessage6,
+        ]
+    ]
+):
+    root: Union[
+        SentinelMeshMessage1,
+        SentinelMeshMessage2,
+        SentinelMeshMessage3,
+        SentinelMeshMessage4,
+        SentinelMeshMessage5,
+        SentinelMeshMessage6,
+    ] = Field(
+        ...,
+        description="Aggregator schema used solely by the code generators (quicktype, datamodel-code-generator) to produce docs/types.ts and docs/models.py from a single entry point. Not used at runtime for validation; validation uses the per-message schemas under messages/.",
+        title="SentinelMesh — all message types",
+    )
+
+
+class Payload7(Payload):
+    """
+    Discriminated union of Zeek conn-style records and Suricata eve.json records. Variant is selected on the `source` field. See docs/SCHEMA.md §2.1.
+    """
+
+
+class SrcPort2(SrcPort):
+    pass
+
+
+class Payload8(BaseModel):
+    """
+    Discriminated union of Zeek conn-style records and Suricata eve.json records. Variant is selected on the `source` field. See docs/SCHEMA.md §2.1.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    source: Literal["suricata"]
+    log_type: str = Field(
+        ...,
+        description="Vendor-native log family. Suricata: 'flow'|'alert'|'dns'|'http'|'tls'|'fileinfo'.",
+        max_length=32,
+        min_length=1,
+    )
+    sensor_id: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
+    received_at: str = Field(
+        ...,
+        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    )
+    raw: dict[str, Any]
+    flow_id: Optional[int] = Field(None, ge=0)
+    src_ip: str = Field(
+        ...,
+        description="IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.",
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    src_port: Optional[SrcPort2] = None
+    dest_ip: str = Field(
+        ...,
+        description="IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.",
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    dest_port: Optional[DestPort] = None
+    proto: Proto
+    community_id: Optional[str] = Field(None, max_length=64)
+    bytes_toserver: Optional[int] = Field(None, ge=0)
+    bytes_toclient: Optional[int] = Field(None, ge=0)
+    pkts_toserver: Optional[int] = Field(None, ge=0)
+    pkts_toclient: Optional[int] = Field(None, ge=0)
+    alert_signature_id: Optional[int] = Field(None, ge=0)
+    alert_signature: Optional[str] = Field(None, max_length=256)
+    alert_category: Optional[str] = Field(None, max_length=128)
+    alert_severity: Optional[int] = Field(None, ge=1, le=5)
 
 
 class RawLogsMessage(BaseModel):
@@ -367,34 +524,274 @@ class RawLogsMessage(BaseModel):
         extra="forbid",
     )
     header: Header
-    payload: Union[ZeekRawLog, SuricataRawLog] = Field(
+    payload: Union[Payload7, Payload8] = Field(
         ...,
         description="Discriminated union of Zeek conn-style records and Suricata eve.json records. Variant is selected on the `source` field. See docs/SCHEMA.md §2.1.",
         title="raw_logs payload",
     )
 
 
-class SentinelMeshMessage(
-    RootModel[
-        Union[
-            RawLogsMessage,
-            ProcessedEventsMessage,
-            GraphSnapshotsMessage,
-            DetectionsMessage,
-            AnalystBriefsMessage,
-            DlqMessage,
-        ]
-    ]
-):
-    root: Union[
-        RawLogsMessage,
-        ProcessedEventsMessage,
-        GraphSnapshotsMessage,
-        DetectionsMessage,
-        AnalystBriefsMessage,
-        DlqMessage,
-    ] = Field(
-        ...,
-        description="Aggregator schema used solely by the code generators (quicktype, datamodel-code-generator) to produce docs/types.ts and docs/models.py from a single entry point. Not used at runtime for validation; validation uses the per-message schemas under messages/.",
-        title="SentinelMesh — all message types",
+class SrcPort3(SrcPort1):
+    pass
+
+
+class Payload9(BaseModel):
+    """
+    Canonical, vendor-neutral 5-tuple event derived from a single raw_logs message. See docs/SCHEMA.md §2.2.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
     )
+    ts: str = Field(
+        ...,
+        description="Canonical event timestamp (RFC3339 UTC ms).",
+        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    )
+    src_ip: str = Field(
+        ...,
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    dst_ip: str = Field(
+        ...,
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    src_port: Optional[SrcPort3] = Field(
+        None, description="Null for ICMP or when the source vendor omits it."
+    )
+    dst_port: Optional[DstPort] = None
+    protocol: Proto
+    bytes_sent: int = Field(
+        ..., description="src->dst payload bytes. Zero if unknown.", ge=0
+    )
+    bytes_recv: int = Field(
+        ..., description="dst->src payload bytes. Zero if unknown.", ge=0
+    )
+    packets_sent: Optional[int] = Field(None, ge=0)
+    packets_recv: Optional[int] = Field(None, ge=0)
+    duration_ms: Optional[int] = Field(None, ge=0)
+    alert_flag: bool = Field(
+        ...,
+        description="True iff event indicates a flagged condition. Rule: Suricata log_type=='alert' OR Zeek conn_state in {S0,REJ,RSTR,RSTO}.",
+    )
+    alert_signature: Optional[str] = Field(None, max_length=256)
+    alert_category: Optional[str] = Field(None, max_length=128)
+    conn_state: Optional[str] = Field(None, max_length=8)
+    community_id: Optional[str] = Field(None, max_length=64)
+    sensor_id: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
+    source: Source
+
+
+class ProcessedEventsMessage(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    header: Header
+    payload: Payload9 = Field(
+        ...,
+        description="Canonical, vendor-neutral 5-tuple event derived from a single raw_logs message. See docs/SCHEMA.md §2.2.",
+        title="processed_events payload",
+    )
+
+
+class Payload10(Payload3):
+    pass
+
+
+class GraphSnapshotsMessage(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    header: Header
+    payload: Payload10 = Field(..., title="graph_snapshots payload (DRAFT)")
+
+
+class Payload11(Payload4):
+    pass
+
+
+class DetectionsMessage(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    header: Header
+    payload: Payload11 = Field(..., title="detections payload (DRAFT)")
+
+
+class Payload12(Payload5):
+    pass
+
+
+class AnalystBriefsMessage(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    header: Header
+    payload: Payload12 = Field(..., title="analyst_briefs payload (DRAFT)")
+
+
+class Payload13(Payload6):
+    """
+    Payload shape for every <topic>.dlq topic. See docs/SCHEMA.md §2.6.
+    """
+
+
+class DlqMessage(BaseModel):
+    """
+    Schema shared by every <topic>.dlq topic.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    header: Header
+    payload: Payload13 = Field(
+        ...,
+        description="Payload shape for every <topic>.dlq topic. See docs/SCHEMA.md §2.6.",
+        title="Dead-letter (DLQ) payload",
+    )
+
+
+class RawLogPayload1(Payload):
+    """
+    Discriminated union of Zeek conn-style records and Suricata eve.json records. Variant is selected on the `source` field. See docs/SCHEMA.md §2.1.
+    """
+
+
+class SrcPort4(SrcPort):
+    pass
+
+
+class RawLogPayload2(BaseModel):
+    """
+    Discriminated union of Zeek conn-style records and Suricata eve.json records. Variant is selected on the `source` field. See docs/SCHEMA.md §2.1.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    source: Literal["suricata"]
+    log_type: str = Field(
+        ...,
+        description="Vendor-native log family. Suricata: 'flow'|'alert'|'dns'|'http'|'tls'|'fileinfo'.",
+        max_length=32,
+        min_length=1,
+    )
+    sensor_id: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
+    received_at: str = Field(
+        ...,
+        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    )
+    raw: dict[str, Any]
+    flow_id: Optional[int] = Field(None, ge=0)
+    src_ip: str = Field(
+        ...,
+        description="IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.",
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    src_port: Optional[SrcPort4] = None
+    dest_ip: str = Field(
+        ...,
+        description="IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.",
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    dest_port: Optional[DestPort] = None
+    proto: Proto
+    community_id: Optional[str] = Field(None, max_length=64)
+    bytes_toserver: Optional[int] = Field(None, ge=0)
+    bytes_toclient: Optional[int] = Field(None, ge=0)
+    pkts_toserver: Optional[int] = Field(None, ge=0)
+    pkts_toclient: Optional[int] = Field(None, ge=0)
+    alert_signature_id: Optional[int] = Field(None, ge=0)
+    alert_signature: Optional[str] = Field(None, max_length=256)
+    alert_category: Optional[str] = Field(None, max_length=128)
+    alert_severity: Optional[int] = Field(None, ge=1, le=5)
+
+
+class RawLogPayload(RootModel[Union[RawLogPayload1, RawLogPayload2]]):
+    root: Union[RawLogPayload1, RawLogPayload2] = Field(
+        ...,
+        description="Discriminated union of Zeek conn-style records and Suricata eve.json records. Variant is selected on the `source` field. See docs/SCHEMA.md §2.1.",
+        title="raw_logs payload",
+    )
+
+
+class SrcPort5(SrcPort1):
+    pass
+
+
+class ProcessedEventPayload(BaseModel):
+    """
+    Canonical, vendor-neutral 5-tuple event derived from a single raw_logs message. See docs/SCHEMA.md §2.2.
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    ts: str = Field(
+        ...,
+        description="Canonical event timestamp (RFC3339 UTC ms).",
+        pattern="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+    )
+    src_ip: str = Field(
+        ...,
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    dst_ip: str = Field(
+        ...,
+        max_length=45,
+        min_length=3,
+        pattern="^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9a-fA-F:]+)$",
+    )
+    src_port: Optional[SrcPort5] = Field(
+        None, description="Null for ICMP or when the source vendor omits it."
+    )
+    dst_port: Optional[DstPort] = None
+    protocol: Proto
+    bytes_sent: int = Field(
+        ..., description="src->dst payload bytes. Zero if unknown.", ge=0
+    )
+    bytes_recv: int = Field(
+        ..., description="dst->src payload bytes. Zero if unknown.", ge=0
+    )
+    packets_sent: Optional[int] = Field(None, ge=0)
+    packets_recv: Optional[int] = Field(None, ge=0)
+    duration_ms: Optional[int] = Field(None, ge=0)
+    alert_flag: bool = Field(
+        ...,
+        description="True iff event indicates a flagged condition. Rule: Suricata log_type=='alert' OR Zeek conn_state in {S0,REJ,RSTR,RSTO}.",
+    )
+    alert_signature: Optional[str] = Field(None, max_length=256)
+    alert_category: Optional[str] = Field(None, max_length=128)
+    conn_state: Optional[str] = Field(None, max_length=8)
+    community_id: Optional[str] = Field(None, max_length=64)
+    sensor_id: str = Field(..., pattern="^[a-z0-9][a-z0-9-]{0,63}$")
+    source: Source
+
+
+class GraphSnapshotPayload(Payload3):
+    pass
+
+
+class DetectionPayload(Payload4):
+    pass
+
+
+class AnalystBriefPayload(Payload5):
+    pass
+
+
+class DlqPayload(Payload6):
+    """
+    Payload shape for every <topic>.dlq topic. See docs/SCHEMA.md §2.6.
+    """

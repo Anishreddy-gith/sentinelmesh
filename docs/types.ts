@@ -10,7 +10,16 @@
  * Schema shared by every <topic>.dlq topic.
  */
 export interface SentinelMeshMessage {
-    header:  Header;
+    header: Header;
+    /**
+     * Discriminated union of Zeek conn-style records and Suricata eve.json records. Variant is
+     * selected on the `source` field. See docs/SCHEMA.md §2.1.
+     *
+     * Canonical, vendor-neutral 5-tuple event derived from a single raw_logs message. See
+     * docs/SCHEMA.md §2.2.
+     *
+     * Payload shape for every <topic>.dlq topic. See docs/SCHEMA.md §2.6.
+     */
     payload: RawLogsPayload;
 }
 
@@ -55,8 +64,14 @@ export interface RawLogsPayload {
     conn_state?: null | string;
     duration?:   number | null;
     history?:    null | string;
-    id_orig_h?:  string;
-    id_orig_p?:  number;
+    /**
+     * IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.
+     */
+    id_orig_h?: string;
+    id_orig_p?: number;
+    /**
+     * IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.
+     */
     id_resp_h?:  string;
     id_resp_p?:  number;
     local_orig?: boolean | null;
@@ -69,7 +84,7 @@ export interface RawLogsPayload {
     log_type?:   string;
     orig_bytes?: number | null;
     orig_pkts?:  number | null;
-    proto?:      Proto;
+    proto?:      Protocol;
     /**
      * Verbatim vendor row, preserved for forensic replay.
      *
@@ -97,12 +112,18 @@ export interface RawLogsPayload {
     bytes_toclient?:     number | null;
     bytes_toserver?:     number | null;
     community_id?:       null | string;
-    dest_ip?:            string;
-    dest_port?:          number | null;
-    flow_id?:            number | null;
-    pkts_toclient?:      number | null;
-    pkts_toserver?:      number | null;
-    src_ip?:             string;
+    /**
+     * IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.
+     */
+    dest_ip?:       string;
+    dest_port?:     number | null;
+    flow_id?:       number | null;
+    pkts_toclient?: number | null;
+    pkts_toserver?: number | null;
+    /**
+     * IPv4 dotted-quad or IPv6 string. Lenient pattern; strict parsing happens in code.
+     */
+    src_ip?: string;
     /**
      * Null for ICMP or when the source vendor omits it.
      */
@@ -125,7 +146,7 @@ export interface RawLogsPayload {
     duration_ms?:  number | null;
     packets_recv?: number | null;
     packets_sent?: number | null;
-    protocol?:     Proto;
+    protocol?:     Protocol;
     /**
      * Canonical event timestamp (RFC3339 UTC ms).
      */
@@ -173,7 +194,7 @@ export interface AnomalousEdge {
     [property: string]: any;
 }
 
-export enum Proto {
+export enum Protocol {
     Icmp = "icmp",
     Other = "other",
     Tcp = "tcp",
